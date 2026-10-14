@@ -6,9 +6,10 @@ import os
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-SOURCE = "https://api.github.com/repos/TwoKeeys/MyRobloxScript/contents/main.lua?ref=main"
+SOURCE_BASE = "https://api.github.com/repos/TwoKeeys/MyRobloxScript/contents/"
 KEY = bytes([173,47,209,86,18,144,231,59,122,5,197,66,240,31,109,154,83,212,37,168,14,95,201,74,132,23,184,55,226,101,11,146])
-OUT = Path("main.lua")
+OUT = Path("storage-hunters.lua")
+LOADER_OUT = Path("main.lua")
 
 def build(source: bytes) -> str:
     digest = hashlib.sha256(source).hexdigest()
@@ -41,25 +42,39 @@ def build(source: bytes) -> str:
         "return _fn()\n"
     )
 
-def main() -> None:
-    token = os.environ.get("SOURCE_REPO_TOKEN", "").strip()
-    if not token:
-        raise RuntimeError("Missing SOURCE_REPO_TOKEN secret; configure it in xin-hub Actions secrets")
-    req = Request(SOURCE, headers={
+def download(path: str, token: str) -> bytes:
+    req = Request(SOURCE_BASE + path + "?ref=main", headers={
         "User-Agent": "xin-hub-automatic-encoder",
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github.raw+json",
     })
     with urlopen(req, timeout=45) as response:
-        source = response.read()
-    if len(source) < 1000:
-        raise RuntimeError("Source script unexpectedly small; refusing to overwrite")
-    result = build(source)
-    if not OUT.exists() or OUT.read_text(encoding="utf-8") != result:
-        OUT.write_text(result, encoding="utf-8")
+        return response.read()
+
+def main() -> None:
+    token = os.environ.get("SOURCE_REPO_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("Missing SOURCE_REPO_TOKEN secret")
+
+    source = download("main.lua", token)
+    loader = download("loader.lua", token)
+    if len(source) < 1000 or len(loader) < 100:
+        raise RuntimeError("Unexpectedly small source or loader; refusing to overwrite")
+    if b"storage-hunters.lua" not in loader:
+        raise RuntimeError("Loader does not reference storage-hunters.lua; refusing to publish")
+
+    encoded = build(source)
+    loader_text = loader.decode("utf-8")
+    if not OUT.exists() or OUT.read_text(encoding="utf-8") != encoded:
+        OUT.write_text(encoded, encoding="utf-8")
         print(f"Updated {OUT}: {len(source)} source bytes")
     else:
-        print("Source unchanged; no update necessary")
+        print("Storage Hunters source unchanged")
+    if not LOADER_OUT.exists() or LOADER_OUT.read_text(encoding="utf-8") != loader_text:
+        LOADER_OUT.write_text(loader_text, encoding="utf-8")
+        print(f"Updated {LOADER_OUT}: {len(loader)} loader bytes")
+    else:
+        print("Hub loader unchanged")
 
 if __name__ == "__main__":
     main()
