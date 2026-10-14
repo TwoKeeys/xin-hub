@@ -3,6 +3,8 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+  repository_dispatch:
+    types: [source_lua_updated]
 
 permissions:
   contents: write
