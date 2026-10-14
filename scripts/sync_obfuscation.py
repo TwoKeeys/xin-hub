@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Refresh the reversible encoded Luau loader from the public source repository."""
+"""Refresh the reversible encoded Luau loader from the source repository (public or private)."""
 import base64
 import hashlib
+import os
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-SOURCE = "https://raw.githubusercontent.com/TwoKeeys/MyRobloxScript/main/main.lua"
+SOURCE = "https://api.github.com/repos/TwoKeeys/MyRobloxScript/contents/main.lua?ref=main"
 KEY = bytes([173,47,209,86,18,144,231,59,122,5,197,66,240,31,109,154,83,212,37,168,14,95,201,74,132,23,184,55,226,101,11,146])
 OUT = Path("main.lua")
 
@@ -41,7 +42,14 @@ def build(source: bytes) -> str:
     )
 
 def main() -> None:
-    req = Request(SOURCE, headers={"User-Agent": "xin-hub-automatic-encoder"})
+    token = os.environ.get("SOURCE_REPO_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("Missing SOURCE_REPO_TOKEN secret; configure it in xin-hub Actions secrets")
+    req = Request(SOURCE, headers={
+        "User-Agent": "xin-hub-automatic-encoder",
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.raw+json",
+    })
     with urlopen(req, timeout=45) as response:
         source = response.read()
     if len(source) < 1000:
